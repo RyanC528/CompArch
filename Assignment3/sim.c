@@ -7,9 +7,6 @@ Assignment: HW3
 */
 
 // CPU State - Taken from  shell.c
-CPU_State CURRENT_STATE, NEXT_STATE;
-int RUN_BIT;	/* run bit */
-int INSTRUCTION_COUNT;
 
 void fetch()
 {
