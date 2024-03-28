@@ -1,0 +1,43 @@
+00000000 <main>:
+    0:        fff00293        addi x5 x0 -1
+    4:        00000313        addi x6 x0 0
+    8:        00100393        addi x7 x0 1
+    c:        00000e13        addi x28 x0 0
+    10:        00a00e93        addi x29 x0 10
+    14:        00200f13        addi x30 x0 2
+    18:        10000f97        auipc x31 0x10000
+    1c:        fe8f8f93        addi x31 x31 -24
+
+00000020 <L1>:
+    20:        00128293        addi x5 x5 1
+    24:        01d2c863        blt x5 x29 16 <fibonacci>
+    28:        01d2d263        bge x5 x29 4 <exit>
+
+0000002c <exit>:
+    2c:        05d00893        addi x17 x0 93
+    30:        00000073        ecall
+
+00000034 <fibonacci>:
+    34:        01e2cc63        blt x5 x30 24 <L3>
+    38:        01e2d263        bge x5 x30 4 <L2>
+
+0000003c <L2>:
+    3c:        00730e33        add x28 x6 x7
+    40:        00038313        addi x6 x7 0
+    44:        000e0393        addi x7 x28 0
+    48:        0080006f        jal x0 8 <arr>
+
+0000004c <L3>:
+    4c:        0040006f        jal x0 4 <arr>
+
+00000050 <arr>:
+    50:        00728863        beq x5 x7 16 <L4>
+    54:        01cfa023        sw x28 0 x31
+    58:        004f8f93        addi x31 x31 4
+    5c:        fc5ff06f        jal x0 -60 <L1>
+
+00000060 <L4>:
+    60:        00730e33        add x28 x6 x7
+    64:        01cfa023        sw x28 0 x31
+    68:        004f8f93        addi x31 x31 4
+    6c:        fb5ff06f        jal x0 -76 <L1>
