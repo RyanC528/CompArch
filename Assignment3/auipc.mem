@@ -1,3 +1,0 @@
-.section .text
-main:
-    addi x18 0x18 0
