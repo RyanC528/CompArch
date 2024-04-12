@@ -15,6 +15,16 @@ Pipe_Reg_DEtoEX Reg_DEtoEX;
 Pipe_Reg_EXtoMEM Reg_EXtoMEM;
 Pipe_Reg_MEMtoWB Reg_MEMtoWB;
 
+//instruction decoded
+
+  uint32_t opcode;
+  uint32_t rd;
+  uint32_t rs1;
+  uint32_t rs2;
+  uint32_t funct3;
+  uint32_t funct7;
+
+
 void pipe_init()
 {
   memset(&CURRENT_STATE, 0, sizeof(CPU_State));

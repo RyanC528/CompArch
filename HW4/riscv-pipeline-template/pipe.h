@@ -64,7 +64,7 @@ typedef struct Pipe_Reg_MEMtoWB {
 extern int RUN_BIT;
 
 /* global variable -- pipeline state */
-extern CPU_State CURRENT_STATE;
+extern CPU_State CURRENT_STATE,NEXT_STATE;
 
 /* called during simulator startup */
 void pipe_init();
