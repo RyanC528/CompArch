@@ -24,14 +24,40 @@ typedef struct Pipe_Reg_IFtoDE {
 
 typedef struct Pipe_Reg_DEtoEX {
   // fill additional information to store here
+  uint32_t opcode;
+  uint32_t rd;
+  uint32_t rs1;
+  uint32_t rs2;
+  uint32_t funct3;
+  uint32_t funct7;
+  int32_t imm;
+
 } Pipe_Reg_DEtoEX;
 
 typedef struct Pipe_Reg_EXtoMEM {
   // fill additional information to store here
+  uint32_t memRead;
+  uint32_t memWrite;
+  uint32_t memAddress;
+  uint32_t storeData;
+  uint32_t aluResult;
+
+  uint32_t rd;
+  uint32_t branchTaken;
+  uint32_t branchTarget;
+
 } Pipe_Reg_EXtoMEM;
 
 typedef struct Pipe_Reg_MEMtoWB {
   // fill additional information to store here
+  uint32_t rd;
+  uint32_t memRead;
+  uint32_t memData;
+  uint32_t aluResult;
+  uint32_t branchTaken;
+  uint32_t branchTarget;
+
+
 } Pipe_Reg_MEMtoWB;
 
 
