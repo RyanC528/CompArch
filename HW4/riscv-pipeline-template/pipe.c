@@ -15,15 +15,12 @@ Pipe_Reg_DEtoEX Reg_DEtoEX;
 Pipe_Reg_EXtoMEM Reg_EXtoMEM;
 Pipe_Reg_MEMtoWB Reg_MEMtoWB;
 
-//instruction decoded
-
-  uint32_t opcode;
-  uint32_t rd;
-  uint32_t rs1;
-  uint32_t rs2;
-  uint32_t funct3;
-  uint32_t funct7;
-
+// Global variables
+uint32_t instr;             // Current instruction being processed
+uint32_t opcode;            // Opcode for instruction
+uint32_t rd, rs1, rs2;      // Destination and source registers
+uint32_t funct3, funct7;    // Function fields
+int32_t imm;                // Immediate value
 
 void pipe_init()
 {
