@@ -39,12 +39,16 @@ void pipe_cycle()
 
 void pipe_stage_wb()
 {
+    printf("Write Back: Opcode=0x%X, rd=%d, funct3=0x%X, rs1=%d, rs2=%d, funct7=0x%X, imm=%d\n", 
+           opcode, Reg_MEMtoWB.rd, funct3, rs1, rs2, funct7, imm);
+
     // Check if there's a register to update
     if (Reg_MEMtoWB.rd != 0) {  // Assume that rd==0 is not written back (follwing RISC-V conventions)
         if (Reg_MEMtoWB.memRead) {
             // If the instruction was load, write the data into rd
             CURRENT_STATE.REGS[Reg_MEMtoWB.rd] = Reg_MEMtoWB.memData;
-        } else {
+        } 
+        else {
             // Else write ALU result into rd
             CURRENT_STATE.REGS[Reg_MEMtoWB.rd] = Reg_MEMtoWB.aluResult;
         }
@@ -54,10 +58,15 @@ void pipe_stage_wb()
     if (Reg_MEMtoWB.branchTaken) {
         CURRENT_STATE.PC = Reg_MEMtoWB.branchTarget;
     }
+
+    memset(&Reg_MEMtoWB, 0, sizeof(Reg_MEMtoWB)); // Clear MEM to WB register after use
 }
 
 void pipe_stage_mem()
 {
+    printf("Memory: Opcode=0x%X, rd=%d, funct3=0x%X, rs1=%d, rs2=%d, funct7=0x%X, imm=%d\n", 
+           opcode, Reg_EXtoMEM.rd, funct3, rs1, rs2, funct7, imm);
+
     // Initialize the next pipeline register
     memset(&Reg_MEMtoWB, 0, sizeof(Pipe_Reg_MEMtoWB));
 
@@ -65,47 +74,53 @@ void pipe_stage_mem()
     if (Reg_EXtoMEM.memRead) {
         // Perform memory read
         Reg_MEMtoWB.memData = mem_read_32(Reg_EXtoMEM.memAddress);
+        Reg_MEMtoWB.memRead = true; // Indicate that data was read into this register
     }
     if (Reg_EXtoMEM.memWrite) {
         // Perform memory write
         mem_write_32(Reg_EXtoMEM.memAddress, Reg_EXtoMEM.storeData);
     }
 
-    // Pass data to the next stage
+    // Pass ALU result and rd for the Write Back stage
     Reg_MEMtoWB.aluResult = Reg_EXtoMEM.aluResult;
     Reg_MEMtoWB.rd = Reg_EXtoMEM.rd;
 
-    // Pass control signals
+    // Pass control signals for branch handling
     Reg_MEMtoWB.branchTaken = Reg_EXtoMEM.branchTaken;
     Reg_MEMtoWB.branchTarget = Reg_EXtoMEM.branchTarget;
 }
 
 void pipe_stage_execute()
 {
-    // Translate variables for ease of implementation
-    uint32_t opcode = Reg_DEtoEX.opcode;
-    uint32_t rd = Reg_DEtoEX.rd;
-    uint32_t rs1 = Reg_DEtoEX.rs1;
-    uint32_t rs2 = Reg_DEtoEX.rs2;
-    uint32_t funct3 = Reg_DEtoEX.funct3;
-    uint32_t funct7 = Reg_DEtoEX.funct7;
-    int32_t imm = Reg_DEtoEX.imm;
+    // Pull data from decode
+    opcode = Reg_DEtoEX.opcode;
+    rd = Reg_DEtoEX.rd;
+    rs1 = Reg_DEtoEX.rs1;
+    rs2 = Reg_DEtoEX.rs2;
+    funct3 = Reg_DEtoEX.funct3;
+    imm = Reg_DEtoEX.imm;
+
+    printf("Execute: Opcode=0x%X, rd=%d, funct3=0x%X, rs1=%d, rs2=%d, funct7=0x%X, imm=%d\n", 
+           opcode, rd, funct3, rs1, rs2, Reg_DEtoEX.funct7, imm);
 
     // Swtich to determine and execute type of instruction based on opcode
     switch (opcode) {
         case 0x33: // R-type instructions
             // ADD
             NEXT_STATE.REGS[rd] = CURRENT_STATE.REGS[rs1] + CURRENT_STATE.REGS[rs2]; // Adds rs1 and rs2, stores in rd
+            printf("ADD: R%d = R%d + R%d -> %d\n", rd, rs1, rs2, NEXT_STATE.REGS[rd]);
             break;
 
         case 0x13: // I-type instructions
             if (funct3 == 0x0) {
                 // ADDI
                 NEXT_STATE.REGS[rd] = CURRENT_STATE.REGS[rs1] + imm; // Add immediate to rs1 and store in rd
+                printf("ADDI: R%d = R%d + %d -> %d\n", rd, rs1, imm, NEXT_STATE.REGS[rd]);
             } else if (funct3 == 0x02) {
                 // LW
                 Reg_EXtoMEM.memAddress = CURRENT_STATE.REGS[rs1] + imm; // Calculate load address
                 Reg_EXtoMEM.memRead = true;  // Indicate that mem should perform a read operation
+                printf("LW: Address=0x%X\n", Reg_EXtoMEM.memAddress);
             }
             break;
 
@@ -114,6 +129,7 @@ void pipe_stage_execute()
             Reg_EXtoMEM.memAddress = CURRENT_STATE.REGS[rs1] + imm;
             Reg_EXtoMEM.storeData = CURRENT_STATE.REGS[rs2];
             Reg_EXtoMEM.memWrite = true;  // Indicate that mem should perform a write operation
+            printf("SW: Mem[0x%X] = R%d -> %d\n", Reg_EXtoMEM.memAddress, rs2, CURRENT_STATE.REGS[rs2]);
             break;
 
         case 0x63: // SB-type instructions
@@ -121,6 +137,7 @@ void pipe_stage_execute()
             if (funct3 == 0x4) {  // 'blt' uses funct3 == 0x4
                 if (CURRENT_STATE.REGS[rs1] < CURRENT_STATE.REGS[rs2]) {
                     NEXT_STATE.PC = CURRENT_STATE.PC + imm;  // Update PC if the branch is taken
+                    printf("BLT: Branch taken to PC=0x%X\n", NEXT_STATE.PC);
                 }
             }
             break;
@@ -128,41 +145,56 @@ void pipe_stage_execute()
         case 0x17: // U-type instructions
             // AUIPC
             NEXT_STATE.REGS[rd] = (CURRENT_STATE.PC + imm) << 12; // Add immediate to current state and shift left by 12 bits
+            printf("AUIPC: R%d -> 0x%X\n", rd, NEXT_STATE.REGS[rd]);
             break;
     }
+
+    // Pass rd to mem
+    Reg_EXtoMEM.rd = rd;
 }
 
 void pipe_stage_decode()
 {
+    uint32_t instr = Reg_IFtoDE.instr;
+    printf("Decode: Instruction=0x%X \n", instr);
+
     // Decodes fields based on order: opcode, destination register, funct3, rs1, rs2, and funct7
-    opcode = Reg_IFtoDE.instr & 0x7F;          // Get opcode
-    rd = (Reg_IFtoDE.instr >> 7) & 0x1F;       // Get destination register
-    funct3 = (Reg_IFtoDE.instr >> 12) & 0x7;   // Get funct3 field
-    rs1 = (Reg_IFtoDE.instr >> 15) & 0x1F;     // Get first source register
-    rs2 = (Reg_IFtoDE.instr >> 20) & 0x1F;     // Get second source register
-    funct7 = (Reg_IFtoDE.instr >> 25) & 0x7F;  // Get funct7 (for R-type instructions)
+    Reg_DEtoEX.opcode = instr & 0x7F;          // Get opcode
+    Reg_DEtoEX.rd = (instr >> 7) & 0x1F;       // Get destination register
+    Reg_DEtoEX.funct3 = (instr >> 12) & 0x7;   // Get funct3 field
+    Reg_DEtoEX.rs1 = (instr >> 15) & 0x1F;     // Get first source register
+    Reg_DEtoEX.rs2 = (instr >> 20) & 0x1F;     // Get second source register
+    Reg_DEtoEX.funct7 = (instr >> 25) & 0x7F;  // Get funct7 (for R-type instructions)
 
     // Switch to decode immediate value based on opcode
     switch (opcode) {
         case 0x13:  // I-type instructions
-            Reg_DEtoEX.imm = (int32_t)Reg_IFtoDE.instr >> 20; // Sign extend the immediate
+            Reg_DEtoEX.imm = (int32_t)instr >> 20; // Sign extend the immediate
+            printf("Decode: I-Type instruction with imm=0x%X \n", Reg_DEtoEX.imm);
             break;
         case 0x23:  // S-type instructions
-            Reg_DEtoEX.imm = ((Reg_IFtoDE.instr >> 7) & 0x1F) | ((Reg_IFtoDE.instr >> 25) << 5); // Assemble immediate value for store (bits 4:0, 11:5)
+            Reg_DEtoEX.imm = ((instr >> 7) & 0x1F) | ((instr >> 25) << 5); // Assemble immediate value for store (bits 4:0, 11:5)
             Reg_DEtoEX.imm = ((int32_t)Reg_DEtoEX.imm << 20) >> 20; // Sign extend the immediate
+            printf("Decode: S-Type instruction with imm=0x%X \n", Reg_DEtoEX.imm);
             break;
         case 0x63:  // SB-type instructions
-            Reg_DEtoEX.imm = ((Reg_IFtoDE.instr >> 7) & 0x1E) | ((Reg_IFtoDE.instr >> 25) << 5) | ((Reg_IFtoDE.instr & 0x80) << 4) | ((Reg_IFtoDE.instr >> 31) << 11); // Assemble immediate value for branch (bits 11, 4:1, 10:5, 12)
+            Reg_DEtoEX.imm = ((instr >> 7) & 0x1E) | ((instr >> 25) << 5) | ((instr & 0x80) << 4) | ((instr >> 31) << 11); // Assemble immediate value for branch (bits 11, 4:1, 10:5, 12)
             Reg_DEtoEX.imm = ((int32_t)Reg_DEtoEX.imm << 20) >> 20; // Sign extend the immediate
+            printf("Decode: SB-Type instruction with imm=0x%X \n", Reg_DEtoEX.imm);
             break;
         case 0x17:  // U-type instructions
-            Reg_DEtoEX.imm = (Reg_IFtoDE.instr & 0xFFFFF000) >> 12; // Get 20-bit upper immediate with leading zeroes
+            Reg_DEtoEX.imm = (instr & 0xFFFFF000) >> 12; // Get 20-bit upper immediate with leading zeroes
+            printf("Decode: U-Type instruction with imm=0x%X \n", Reg_DEtoEX.imm);
             break;
     }
+
+    printf("Decode: Opcode=0x%X, rd=%d, funct3=0x%X, rs1=%d, rs2=%d, funct7=0x%X, imm=%d\n", 
+           Reg_DEtoEX.opcode, Reg_DEtoEX.rd, Reg_DEtoEX.funct3, Reg_DEtoEX.rs1, Reg_DEtoEX.rs2, Reg_DEtoEX.funct7, Reg_DEtoEX.imm);
 }
 
 void pipe_stage_fetch()
 {
-  Reg_IFtoDE.instr = mem_read_32(CURRENT_STATE.PC); 
+  Reg_IFtoDE.instr = mem_read_32(CURRENT_STATE.PC);
+  printf("Fetch: PC=0x%08x, Instr=0x%08x\n", CURRENT_STATE.PC, Reg_IFtoDE.instr);
   CURRENT_STATE.PC = CURRENT_STATE.PC+4; // increment PC
 }
