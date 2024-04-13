@@ -19,6 +19,7 @@ typedef struct CPU_State_Struct {
 
 typedef struct Pipe_Reg_IFtoDE {
   uint32_t instr;
+  uint32_t pc;
   // fill additional information to store here
 } Pipe_Reg_IFtoDE;
 
@@ -30,6 +31,7 @@ typedef struct Pipe_Reg_DEtoEX {
   uint32_t rs2;
   uint32_t funct3;
   uint32_t funct7;
+  uint32_t pc;
   int32_t imm;
 
 } Pipe_Reg_DEtoEX;
