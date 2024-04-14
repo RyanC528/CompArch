@@ -1,6 +1,4 @@
-/* HEADER
-  Name: Ryan Copeland, Gaberial Gonzelas
-  Assignment: HW4, pipe.c
+/* Ryan Copeland | Gabriel Gonzalez | EECE 4821 | HW4 | pipe.c | 4/14/2024
   REPO: https://github.com/RyanC528/CompArch/tree/main/HW4
 */
 
@@ -40,25 +38,30 @@ void pipe_cycle()
     // Check for hazards that would require stalling:
     stall = 0; // Reset stall each cycle
 
-    // Hazards: a store or load followed immediately by a use of the same register
-    // Stall if the previous instruction is writing to a register used by the current instruction
+    /* Hazards: a store or load followed immediately by use of the same register.
+    Stall if the previous instruction is writing to a register used by the current instruction */
+
+    // Stall if SW is writing to register used by current instruction (if memWrite flag is true)
     if ((Reg_DEtoEX.rs1 == Reg_EXtoMEM.rd || Reg_DEtoEX.rs2 == Reg_EXtoMEM.rd) && Reg_EXtoMEM.memWrite) {
         stall = 1;
     }
+    // Stall if LW is reading or writing register used by current instruction (if memRead flag is true)
     if ((Reg_DEtoEX.rs1 == Reg_EXtoMEM.rd || Reg_DEtoEX.rs2 == Reg_EXtoMEM.rd) && Reg_MEMtoWB.memRead) {
         stall = 1;
     }
 
+    // Always run write back and memory stages
     pipe_stage_wb();
     pipe_stage_mem();
 
+    // Delay EX, DE, and IF if there is a stall
     if (!stall) {
         pipe_stage_execute();
         pipe_stage_decode();
         pipe_stage_fetch();
     }
 
-    // If no destination register, alu flag, memread, or next instruction, mark flag
+    // If no destination register, alu flag, memread, or next instruction, set RUN_BIT to 0 to terminate program
     if(Reg_MEMtoWB.rd == 0 && Reg_EXtoMEM.aluDone == false && Reg_MEMtoWB.aluDone == false 
         && Reg_MEMtoWB.memRead == false && Reg_IFtoDE.instr == 0){
             RUN_BIT = 0;
@@ -67,25 +70,25 @@ void pipe_cycle()
 
 void pipe_stage_wb()
 {
-    // Check if there's a register to update
+    // Check if there's a destination register (rd) to update
     if (Reg_MEMtoWB.rd != 0) {  // Assume that rd==0 is not written back (follwing RISC-V conventions)
         if (Reg_MEMtoWB.memRead) {
             // If the instruction was load, write the data into rd
             CURRENT_STATE.REGS[Reg_MEMtoWB.rd] = Reg_MEMtoWB.memData;
-        } 
+        } // Else if EX to MEM or MEM to WB pipeline contain flag for an ALU operation
         else if (Reg_EXtoMEM.aluDone || Reg_MEMtoWB.aluDone) {
-            // Else write ALU result into rd
+            // Write ALU result into rd
             CURRENT_STATE.REGS[Reg_MEMtoWB.rd] = Reg_MEMtoWB.aluResult;
             Reg_MEMtoWB.aluDone = false;
         }
     }
 
-    // If a branch was taken, update PC
+    // If a branch was taken, set current PC to branch target
     if (Reg_MEMtoWB.branchTaken) {
         CURRENT_STATE.PC = Reg_MEMtoWB.branchTarget;
     }
 
-    memset(&Reg_MEMtoWB, 0, sizeof(Reg_MEMtoWB)); // Clear MEM to WB after use
+    memset(&Reg_MEMtoWB, 0, sizeof(Reg_MEMtoWB)); // Clear MEM to WB pipeline after use
 }
 
 void pipe_stage_mem()
@@ -99,10 +102,10 @@ void pipe_stage_mem()
     if (Reg_EXtoMEM.memWrite) {
         // Perform memory write
         mem_write_32(Reg_EXtoMEM.memAddress, Reg_EXtoMEM.storeData);
-        Reg_MEMtoWB.aluDone = false;
+        Reg_MEMtoWB.aluDone = false; // Indicate that operation is done, no ALU operation necessary
     }
 
-    // Pass ALU result and rd for the Write Back stage
+    // Pass ALU result, ALU operation flag, and rd for the Write Back stage
     Reg_MEMtoWB.aluDone = Reg_EXtoMEM.aluDone;
     Reg_MEMtoWB.aluResult = Reg_EXtoMEM.aluResult;
     Reg_MEMtoWB.rd = Reg_EXtoMEM.rd;
@@ -111,12 +114,12 @@ void pipe_stage_mem()
     Reg_MEMtoWB.branchTaken = Reg_EXtoMEM.branchTaken;
     Reg_MEMtoWB.branchTarget = Reg_EXtoMEM.branchTarget;
 
-    memset(&Reg_EXtoMEM, 0, sizeof(Reg_EXtoMEM)); // Clear MEM to WB after use
+    memset(&Reg_EXtoMEM, 0, sizeof(Reg_EXtoMEM)); // Clear MEM to WB pipeline after use
 }
 
 void pipe_stage_execute()
 {
-    // Pull data from decode
+    // Pull data from decode pipeline
     opcode = Reg_DEtoEX.opcode;
     rd = Reg_DEtoEX.rd;
     rs1 = Reg_DEtoEX.rs1;
@@ -124,42 +127,43 @@ void pipe_stage_execute()
     funct3 = Reg_DEtoEX.funct3;
     imm = Reg_DEtoEX.imm;
 
+    // Set value of r1 and r2 to local variable for manipulation
     int32_t rs1_val = CURRENT_STATE.REGS[rs1];
     int32_t rs2_val = CURRENT_STATE.REGS[rs2];
 
     // Forwarding Logic
-    // Check MEM to WB forwarding
+    // Check MEM to WB forwarding (if result has reached WB stage)
     if (Reg_MEMtoWB.rd == rs1 && Reg_MEMtoWB.rd != 0) {
-        rs1_val = Reg_MEMtoWB.aluResult;  // Forward from MEM/WB to EX if rs1 needs the value from a recent ALU operation
-        Reg_MEMtoWB.aluDone = true;
+        rs1_val = Reg_MEMtoWB.aluResult;  // Forward from EX to MEM/WB if rs1 needs the value from a recent ALU operation
+        Reg_MEMtoWB.aluDone = true;       // Flag that WB should process ALU operation
     }
     if (Reg_MEMtoWB.rd == rs2 && Reg_MEMtoWB.rd != 0) {
-        rs2_val = Reg_MEMtoWB.aluResult;  // Forward from MEM/WB to EX if rs2 needs the value from a recent ALU operation
-        Reg_MEMtoWB.aluDone = true;
+        rs2_val = Reg_MEMtoWB.aluResult;  // Forward from EX to MEM/WB if rs2 needs the value from a recent ALU operation
+        Reg_MEMtoWB.aluDone = true;       // Flag that WB should process ALU operation
     }
 
     // Check EX to MEM forwarding (handles the scenario where the result needed hasn't reached the WB stage yet)
     if (Reg_EXtoMEM.rd == rs1 && Reg_EXtoMEM.rd != 0) {
-        rs1_val = Reg_EXtoMEM.aluResult;  // Immediate forwarding from EX/MEM to EX if rs1 needs the value from the current EX stage
-        Reg_EXtoMEM.aluDone = true;
+        rs1_val = Reg_EXtoMEM.aluResult;  // Immediate forwarding from EX to EX/MEM if rs1 needs the value from the current EX stage
+        Reg_EXtoMEM.aluDone = true;       // Flag that MEM should send to WB to process ALU operation
     }
     if (Reg_EXtoMEM.rd == rs2 && Reg_EXtoMEM.rd != 0) {
-        rs2_val = Reg_EXtoMEM.aluResult;  // Immediate forwarding from EX/MEM to EX if rs2 needs the value from the current EX stage
-        Reg_EXtoMEM.aluDone = true;
+        rs2_val = Reg_EXtoMEM.aluResult;  // Immediate forwarding from EX to EX/MEM if rs2 needs the value from the current EX stage
+        Reg_EXtoMEM.aluDone = true;       // Flag that MEM should send to WB to process ALU operation
     }
 
     // Swtich to determine and execute type of instruction based on opcode
     switch (opcode) {
         case 0x33: // R-type instructions
             // ADD
-            Reg_EXtoMEM.aluResult = rs1_val + rs2_val; // Adds rs1 and rs2, stores in rd
-            Reg_EXtoMEM.aluDone = true;
+            Reg_EXtoMEM.aluResult = rs1_val + rs2_val; // Adds rs1 and rs2, stores in ALU result
+            Reg_EXtoMEM.aluDone = true; // Flag that MEM should send to WB to process ALU operation
             break;
 
         case 0x13: // I-type instructions
             // ADDI
-            Reg_EXtoMEM.aluResult = rs1_val + imm; // Add immediate to rs1 and store in rd
-            Reg_EXtoMEM.aluDone = true;
+            Reg_EXtoMEM.aluResult = rs1_val + imm; // Add immediate to rs1 and store in ALU result
+            Reg_EXtoMEM.aluDone = true; // Flag that MEM should send to WB to process ALU operation
             break;
         
         case 0x3: // I-type instructions
@@ -186,11 +190,11 @@ void pipe_stage_execute()
         case 0x17: // U-type instructions
             // AUIPC
             Reg_EXtoMEM.aluResult = (Reg_DEtoEX.pc + imm) << 12; // Use PC from decode stage
-            Reg_EXtoMEM.aluDone = true;
+            Reg_EXtoMEM.aluDone = true; // Flag that MEM should send to WB to process ALU operation
             break;
     }
 
-    // Pass rd to mem
+    // Pass destination register to mem
     Reg_EXtoMEM.rd = rd;
 
     memset(&Reg_DEtoEX, 0, sizeof(Reg_DEtoEX)); // Clear DE to EX after use
@@ -236,14 +240,12 @@ void pipe_stage_decode()
 
 void pipe_stage_fetch()
 {
-  Reg_IFtoDE.instr = mem_read_32(CURRENT_STATE.PC);
+    // Pull instruction at current pc to be sent to DE through pipeline
+    Reg_IFtoDE.instr = mem_read_32(CURRENT_STATE.PC);
 
-  if (Reg_IFtoDE.instr != 0 && Reg_EXtoMEM.branchTaken == false){
-    Reg_IFtoDE.pc = CURRENT_STATE.PC;
-    CURRENT_STATE.PC = CURRENT_STATE.PC+4; // increment PC
-  }
-<<<<<<< HEAD
+    // If instruction is not 0 and EX has not flagged a branch operation
+    if (Reg_IFtoDE.instr != 0 && Reg_EXtoMEM.branchTaken == false){
+        Reg_IFtoDE.pc = CURRENT_STATE.PC;   // Record current PC for instruction being processed
+        CURRENT_STATE.PC = CURRENT_STATE.PC+4; // Increment PC
+    }
 }
-=======
-}
->>>>>>> aded81a71fd936b1b65c679c2c19acfdd35a2c51
