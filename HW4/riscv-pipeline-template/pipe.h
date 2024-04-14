@@ -59,6 +59,7 @@ typedef struct Pipe_Reg_MEMtoWB {
   uint32_t aluResult;
   uint32_t branchTaken;
   uint32_t branchTarget;
+  uint32_t aluDone;
 
 
 } Pipe_Reg_MEMtoWB;
