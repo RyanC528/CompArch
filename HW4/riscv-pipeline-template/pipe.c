@@ -1,3 +1,9 @@
+/* HEADER
+  Name: Ryan Copeland, Gaberial Gonzelas
+  Assignment: HW4, pipe.c
+  REPO: https://github.com/RyanC528/CompArch/tree/main/HW4
+*/
+
 // RISCV pipeline timing simulator
 
 #include "pipe.h"
