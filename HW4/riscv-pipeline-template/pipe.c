@@ -109,10 +109,12 @@ void pipe_stage_execute()
     // Forwarding logic
     if (Reg_MEMtoWB.rd == rs1 && Reg_MEMtoWB.rd != 0) {
         CURRENT_STATE.REGS[rs1] = Reg_MEMtoWB.aluResult;  // Forward from MEM/WB to EX
+        printf("ALUCHECK %d",CURRENT_STATE.REGS[rs1]);
         printf("FORWARDING (r1)\n");
     }
     if (Reg_MEMtoWB.rd == rs2 && Reg_MEMtoWB.rd != 0) {
         CURRENT_STATE.REGS[rs2] = Reg_MEMtoWB.aluResult;  // Forward from MEM/WB to EX
+        printf("ALUCHECK %d",CURRENT_STATE.REGS[rs2]);
         printf("FORWARDING (r2)\n");
     }
 
