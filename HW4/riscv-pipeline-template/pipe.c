@@ -53,6 +53,12 @@ void pipe_cycle()
     } else {
         printf("Stalling to resolve data hazards\n");
     }
+
+    // If no destination register, alu flag, memread, or next instruction, mark flag
+    if(Reg_MEMtoWB.rd == 0 && Reg_EXtoMEM.aluDone == false && Reg_MEMtoWB.aluDone == false 
+        && Reg_MEMtoWB.memRead == false && Reg_IFtoDE.instr == 0){
+            RUN_BIT = 0;
+        }
 }
 
 void pipe_stage_wb()
@@ -80,8 +86,6 @@ void pipe_stage_wb()
         CURRENT_STATE.PC = Reg_MEMtoWB.branchTarget;
         printf("Write Back: New Current state=0x%X\n", Reg_MEMtoWB.branchTarget);
     }
-
-    if(Reg_MEMtoWB.rd == 0 && Reg_EXtoMEM.aluDone == false && Reg_MEMtoWB.aluDone == false){}
 
     memset(&Reg_MEMtoWB, 0, sizeof(Reg_MEMtoWB)); // Clear MEM to WB after use
 }
