@@ -21,6 +21,7 @@ uint32_t opcode;            // Opcode for instruction
 uint32_t rd, rs1, rs2;      // Destination and source registers
 uint32_t funct3, funct7;    // Function fields
 int32_t imm;                // Immediate value
+int stall = 0;              // Global flag for stalling logic
 
 void pipe_init()
 {
@@ -30,17 +31,31 @@ void pipe_init()
 
 void pipe_cycle()
 {
-  pipe_stage_wb();
-  pipe_stage_mem();
-  pipe_stage_execute();
-  pipe_stage_decode();
-  pipe_stage_fetch();
+    // Check for hazards that would require stalling:
+    stall = 0; // Reset stall each cycle
+
+    // Example hazard: a store followed immediately by a use of the same register
+    if ((Reg_DEtoEX.rs1 == Reg_EXtoMEM.rd || Reg_DEtoEX.rs2 == Reg_EXtoMEM.rd) && Reg_EXtoMEM.memWrite) {
+        stall = 1; // Stall if the previous instruction is writing to a register used by the current instruction
+    }
+
+    pipe_stage_wb();
+    pipe_stage_mem();
+
+    if (!stall) {
+        pipe_stage_execute();
+        pipe_stage_decode();
+        pipe_stage_fetch();
+    } else {
+        printf("Stalling to resolve data hazards\n");
+        // Optionally: Maintain current state without overwriting registers or PC.
+    }
 }
 
 void pipe_stage_wb()
 {
-    printf("Write Back: Destination=R%d, ALU=%d\n", 
-        Reg_MEMtoWB.rd, Reg_MEMtoWB.aluResult);
+    printf("Write Back: Destination=R%d, ALU=%d, ALU Write? %d \n", 
+        Reg_MEMtoWB.rd, Reg_MEMtoWB.aluResult, Reg_EXtoMEM.aluDone);
 
     // Check if there's a register to update
     if (Reg_MEMtoWB.rd != 0) {  // Assume that rd==0 is not written back (follwing RISC-V conventions)
@@ -49,7 +64,7 @@ void pipe_stage_wb()
             CURRENT_STATE.REGS[Reg_MEMtoWB.rd] = Reg_MEMtoWB.memData;
             printf("Write Back: Loading %d to R%d\n", Reg_MEMtoWB.memData, Reg_MEMtoWB.rd);
         } 
-        else {
+        else if (Reg_EXtoMEM.aluDone) {
             // Else write ALU result into rd
             printf("Write Back: Writing %d to R%d\n", Reg_MEMtoWB.aluResult, Reg_MEMtoWB.rd);
             CURRENT_STATE.REGS[Reg_MEMtoWB.rd] = Reg_MEMtoWB.aluResult;
@@ -68,9 +83,6 @@ void pipe_stage_wb()
 void pipe_stage_mem()
 {
     printf("Memory: Memory Destination=R%d\n", Reg_EXtoMEM.rd);
-
-    // Initialize the next pipeline register
-    memset(&Reg_MEMtoWB, 0, sizeof(Pipe_Reg_MEMtoWB));
 
     // Handle memory operations
     if (Reg_EXtoMEM.memRead) {
@@ -93,7 +105,7 @@ void pipe_stage_mem()
     Reg_MEMtoWB.branchTaken = Reg_EXtoMEM.branchTaken;
     Reg_MEMtoWB.branchTarget = Reg_EXtoMEM.branchTarget;
 
-    memset(&Reg_EXtoMEM, 0, sizeof(Reg_EXtoMEM)); // Clear EX to MEM after use
+    memset(&Reg_EXtoMEM, 0, sizeof(Reg_EXtoMEM)); // Clear MEM to WB after use
 }
 
 void pipe_stage_execute()
@@ -106,57 +118,75 @@ void pipe_stage_execute()
     funct3 = Reg_DEtoEX.funct3;
     imm = Reg_DEtoEX.imm;
 
-    // Forwarding logic
+    int32_t rs1_val = CURRENT_STATE.REGS[rs1];
+    int32_t rs2_val = CURRENT_STATE.REGS[rs2];
+
+    // Forwarding Logic
+    // Check MEM to WB forwarding
     if (Reg_MEMtoWB.rd == rs1 && Reg_MEMtoWB.rd != 0) {
-        CURRENT_STATE.REGS[rs1] = Reg_MEMtoWB.aluResult;  // Forward from MEM/WB to EX
-        printf("ALUCHECK %d",CURRENT_STATE.REGS[rs1]);
-        printf("FORWARDING (r1)\n");
+        rs1_val = Reg_MEMtoWB.aluResult;  // Forward from MEM/WB to EX if rs1 needs the value from a recent ALU operation
+        Reg_EXtoMEM.aluDone = true;
+        printf("Forwarding from MEM/WB to rs1: Using ALU result %d for R%d\n", Reg_MEMtoWB.aluResult, rs1);
     }
     if (Reg_MEMtoWB.rd == rs2 && Reg_MEMtoWB.rd != 0) {
-        CURRENT_STATE.REGS[rs2] = Reg_MEMtoWB.aluResult;  // Forward from MEM/WB to EX
-        printf("ALUCHECK %d",CURRENT_STATE.REGS[rs2]);
-        printf("FORWARDING (r2)\n");
+        rs2_val = Reg_MEMtoWB.aluResult;  // Forward from MEM/WB to EX if rs2 needs the value from a recent ALU operation
+        Reg_EXtoMEM.aluDone = true;
+        printf("Forwarding from MEM/WB to rs2: Using ALU result %d for R%d\n", Reg_MEMtoWB.aluResult, rs2);
     }
 
-    printf("Execute: Opcode=0x%X, rd=%d, funct3=0x%X, rs1=%d, rs2=%d, funct7=0x%X, imm=%d\n", 
-           opcode, rd, funct3, rs1, rs2, Reg_DEtoEX.funct7, imm);
+    // Check EX to MEM forwarding (handles the scenario where the result needed hasn't reached the WB stage yet)
+    if (Reg_EXtoMEM.rd == rs1 && Reg_EXtoMEM.rd != 0) {
+        rs1_val = Reg_EXtoMEM.aluResult;  // Immediate forwarding from EX/MEM to EX if rs1 needs the value from the current EX stage
+        Reg_EXtoMEM.aluDone = true;
+        printf("Immediate forwarding from EX/MEM to rs1: Using ALU result %d for R%d\n", Reg_EXtoMEM.aluResult, rs1);
+    }
+    if (Reg_EXtoMEM.rd == rs2 && Reg_EXtoMEM.rd != 0) {
+        rs2_val = Reg_EXtoMEM.aluResult;  // Immediate forwarding from EX/MEM to EX if rs2 needs the value from the current EX stage
+        Reg_EXtoMEM.aluDone = true;
+        printf("Immediate forwarding from EX/MEM to rs2: Using ALU result %d for R%d\n", Reg_EXtoMEM.aluResult, rs2);
+    }
+
+    printf("Execute: Opcode=0x%X, rd=%d, funct3=0x%X, rs1=%d (val=%d), rs2=%d (val=%d), funct7=0x%X, imm=%d\n", 
+        opcode, rd, funct3, rs1, rs1_val, rs2, rs2_val, Reg_DEtoEX.funct7, imm);
 
     // Swtich to determine and execute type of instruction based on opcode
     switch (opcode) {
         case 0x33: // R-type instructions
             // ADD
-            Reg_EXtoMEM.aluResult = CURRENT_STATE.REGS[rs1] + CURRENT_STATE.REGS[rs2]; // Adds rs1 and rs2, stores in rd
-            printf("ADD: R%d = %d + %d -> %d\n", rd, CURRENT_STATE.REGS[rs1], CURRENT_STATE.REGS[rs2], Reg_EXtoMEM.aluResult);
+            Reg_EXtoMEM.aluResult = rs1_val + rs2_val; // Adds rs1 and rs2, stores in rd
+            Reg_EXtoMEM.aluDone = true;
+            printf("ADD: R%d = %d + %d -> %d\n", rd, rs1_val, rs2_val, Reg_EXtoMEM.aluResult);
             break;
 
         case 0x13: // I-type instructions
             // ADDI
-            Reg_EXtoMEM.aluResult = CURRENT_STATE.REGS[rs1] + imm; // Add immediate to rs1 and store in rd
+            Reg_EXtoMEM.aluResult = rs1_val + imm; // Add immediate to rs1 and store in rd
+            Reg_EXtoMEM.aluDone = true;
             printf("ADDI: R%d = R%d + %d -> %d\n", rd, rs1, imm, Reg_EXtoMEM.aluResult);
             break;
         
         case 0x3: // I-type instructions
             // LW
-            Reg_EXtoMEM.memAddress = CURRENT_STATE.REGS[rs1] + imm; // Calculate load address
+            Reg_EXtoMEM.memAddress = rs1_val + imm; // Calculate load address
             Reg_EXtoMEM.memRead = true;  // Indicate that mem should perform a read operation
             printf("LW: Address=0x%X\n", Reg_EXtoMEM.memAddress);
             break;
 
         case 0x23: // S-type instructions
             // SW
-            Reg_EXtoMEM.memAddress = CURRENT_STATE.REGS[rs1] + imm;
-            Reg_EXtoMEM.storeData = CURRENT_STATE.REGS[rs2];
+            Reg_EXtoMEM.memAddress = rs1_val + imm;
+            Reg_EXtoMEM.storeData = rs2_val;
             Reg_EXtoMEM.memWrite = true;  // Indicate that mem should perform a write operation
-            printf("SW: Mem[0x%X] = R%d -> %d\n", Reg_EXtoMEM.memAddress, rs2, CURRENT_STATE.REGS[rs2]);
+            printf("SW: Mem[0x%X] = R%d -> %d\n", Reg_EXtoMEM.memAddress, rs2, rs2_val);
             break;
 
         case 0x63: // SB-type instructions
             // BLT
-            if (CURRENT_STATE.REGS[rs1] < CURRENT_STATE.REGS[rs2]) {
+            if (rs1_val < rs2_val) {
                 Reg_EXtoMEM.branchTarget = CURRENT_STATE.PC + imm;  // Update PC if the branch is taken
                 Reg_EXtoMEM.branchTaken = true;
                 printf("Executing Branch: rs1=%d, rs2=%d, rs1_val=%d, rs2_val=%d, imm=%d, Target=%x\n",
-       rs1, rs2, CURRENT_STATE.REGS[rs1], CURRENT_STATE.REGS[rs2], imm, Reg_EXtoMEM.branchTarget);
+                    rs1, rs2, rs1_val, rs2_val, imm, Reg_EXtoMEM.branchTarget);
                 printf("BLT: Branch taken to PC=0x%X\n", Reg_EXtoMEM.branchTarget);
             }
             break;
@@ -164,6 +194,7 @@ void pipe_stage_execute()
         case 0x17: // U-type instructions
             // AUIPC
             Reg_EXtoMEM.aluResult = (Reg_DEtoEX.pc + imm) << 12; // Use PC from decode stage
+            Reg_EXtoMEM.aluDone = true;
             printf("AUIPC: R%d -> 0x%X\n", rd, Reg_EXtoMEM.aluResult);
             break;
     }
@@ -171,7 +202,7 @@ void pipe_stage_execute()
     // Pass rd to mem
     Reg_EXtoMEM.rd = rd;
 
-    memset(&Reg_DEtoEX, 0, sizeof(Reg_DEtoEX)); // Clear DE to EX after use
+    //memset(&Reg_DEtoEX, 0, sizeof(Reg_DEtoEX)); // Clear DE to EX after use
 }
 
 void pipe_stage_decode()
@@ -219,7 +250,7 @@ void pipe_stage_decode()
     printf("Decode: Opcode=0x%X, rd=%d, funct3=0x%X, rs1=%d, rs2=%d, funct7=0x%X, imm=%d\n", 
            Reg_DEtoEX.opcode, Reg_DEtoEX.rd, Reg_DEtoEX.funct3, Reg_DEtoEX.rs1, Reg_DEtoEX.rs2, Reg_DEtoEX.funct7, imm);
 
-    memset(&Reg_IFtoDE, 0, sizeof(Reg_IFtoDE)); // Clear IF to DE after use
+    //memset(&Reg_IFtoDE, 0, sizeof(Reg_IFtoDE)); // Clear IF to DE after use
 }
 
 void pipe_stage_fetch()
