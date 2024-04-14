@@ -4,7 +4,7 @@
 /* HEADER
   Name: Ryan Copeland, Gaberial Gonzelas
   Assignment: HW4, pipe.h
-  REPO: https://github.com/RyanC528/CompArch/tree/main/Assignment3
+  REPO: https://github.com/RyanC528/CompArch/tree/main/HW4
 */
 
 #include "shell.h"
