@@ -18,48 +18,49 @@ typedef struct CPU_State_Struct {
 } CPU_State;
 
 typedef struct Pipe_Reg_IFtoDE {
-  uint32_t instr;
-  uint32_t pc;
-  // fill additional information to store here
+
+  uint32_t instr; //input instruction
+  uint32_t pc;//program counter
+
 } Pipe_Reg_IFtoDE;
 
 typedef struct Pipe_Reg_DEtoEX {
-  // fill additional information to store here
-  uint32_t opcode;
-  uint32_t rd;
-  uint32_t rs1;
-  uint32_t rs2;
-  uint32_t funct3;
-  uint32_t funct7;
-  uint32_t pc;
-  int32_t imm;
+  //taken from instruction
+  uint32_t opcode;//opcode
+  uint32_t rd; //desitnation register
+  uint32_t rs1; //register 1
+  uint32_t rs2; //register 2
+  uint32_t funct3; //function 3 code
+  uint32_t funct7; //function 7 code
+  int32_t imm; //intermediate
+
+  uint32_t pc;//program counter
 
 } Pipe_Reg_DEtoEX;
 
 typedef struct Pipe_Reg_EXtoMEM {
-  // fill additional information to store here
-  uint32_t memRead;
-  uint32_t memWrite;
-  uint32_t memAddress;
-  uint32_t storeData;
-  uint32_t aluResult;
-  uint32_t aluDone;
+  //taken largely from opcode
+  uint32_t memRead;// read memory bit
+  uint32_t memWrite;// write memory bit
+  uint32_t memAddress;//memory address
+  uint32_t storeData;//data to be store
+  uint32_t aluResult;// alu result
+  uint32_t aluDone;//alu completion bit
 
-  uint32_t rd;
-  uint32_t branchTaken;
-  uint32_t branchTarget;
+  uint32_t rd;// destination register
+  uint32_t branchTaken;//branch taken
+  uint32_t branchTarget;//target branch
 
 } Pipe_Reg_EXtoMEM;
 
 typedef struct Pipe_Reg_MEMtoWB {
-  // fill additional information to store here
-  uint32_t rd;
-  uint32_t memRead;
-  uint32_t memData;
-  uint32_t aluResult;
-  uint32_t branchTaken;
-  uint32_t branchTarget;
-  uint32_t aluDone;
+  uint32_t rd; //destination register
+  uint32_t memRead; //read memory bit
+  uint32_t memData; //write memory bit
+  uint32_t aluResult; //alu result
+  uint32_t branchTaken; //branch taken
+  uint32_t branchTarget; // target branch
+  uint32_t aluDone; // alu done bit
 
 
 } Pipe_Reg_MEMtoWB;
