@@ -34,9 +34,13 @@ void pipe_cycle()
     // Check for hazards that would require stalling:
     stall = 0; // Reset stall each cycle
 
-    // Example hazard: a store followed immediately by a use of the same register
+    // Hazards: a store or load followed immediately by a use of the same register
+    // Stall if the previous instruction is writing to a register used by the current instruction
     if ((Reg_DEtoEX.rs1 == Reg_EXtoMEM.rd || Reg_DEtoEX.rs2 == Reg_EXtoMEM.rd) && Reg_EXtoMEM.memWrite) {
-        stall = 1; // Stall if the previous instruction is writing to a register used by the current instruction
+        stall = 1;
+    }
+    if ((Reg_DEtoEX.rs1 == Reg_EXtoMEM.rd || Reg_DEtoEX.rs2 == Reg_EXtoMEM.rd) && Reg_MEMtoWB.memRead) {
+        stall = 1;
     }
 
     pipe_stage_wb();
@@ -48,14 +52,13 @@ void pipe_cycle()
         pipe_stage_fetch();
     } else {
         printf("Stalling to resolve data hazards\n");
-        // Optionally: Maintain current state without overwriting registers or PC.
     }
 }
 
 void pipe_stage_wb()
 {
-    printf("Write Back: Destination=R%d, ALU=%d, ALU Write? %d \n", 
-        Reg_MEMtoWB.rd, Reg_MEMtoWB.aluResult, Reg_EXtoMEM.aluDone);
+    printf("Write Back: Destination=R%d, ALU=%d, ALU Write? %d or %d\n", 
+        Reg_MEMtoWB.rd, Reg_MEMtoWB.aluResult, Reg_EXtoMEM.aluDone, Reg_MEMtoWB.aluDone);
 
     // Check if there's a register to update
     if (Reg_MEMtoWB.rd != 0) {  // Assume that rd==0 is not written back (follwing RISC-V conventions)
@@ -64,18 +67,21 @@ void pipe_stage_wb()
             CURRENT_STATE.REGS[Reg_MEMtoWB.rd] = Reg_MEMtoWB.memData;
             printf("Write Back: Loading %d to R%d\n", Reg_MEMtoWB.memData, Reg_MEMtoWB.rd);
         } 
-        else if (Reg_EXtoMEM.aluDone) {
+        else if (Reg_EXtoMEM.aluDone || Reg_MEMtoWB.aluDone) {
             // Else write ALU result into rd
             printf("Write Back: Writing %d to R%d\n", Reg_MEMtoWB.aluResult, Reg_MEMtoWB.rd);
             CURRENT_STATE.REGS[Reg_MEMtoWB.rd] = Reg_MEMtoWB.aluResult;
+            Reg_MEMtoWB.aluDone = false;
         }
     }
 
     // If a branch was taken, update PC
     if (Reg_MEMtoWB.branchTaken) {
         CURRENT_STATE.PC = Reg_MEMtoWB.branchTarget;
-        printf("Write Back: New Current state=%d\n", Reg_MEMtoWB.branchTarget);
+        printf("Write Back: New Current state=0x%X\n", Reg_MEMtoWB.branchTarget);
     }
+
+    if(Reg_MEMtoWB.rd == 0 && Reg_EXtoMEM.aluDone == false && Reg_MEMtoWB.aluDone == false){}
 
     memset(&Reg_MEMtoWB, 0, sizeof(Reg_MEMtoWB)); // Clear MEM to WB after use
 }
@@ -95,9 +101,11 @@ void pipe_stage_mem()
         // Perform memory write
         printf("Memory: Storing %d at %d\n", Reg_EXtoMEM.storeData, Reg_EXtoMEM.memAddress);
         mem_write_32(Reg_EXtoMEM.memAddress, Reg_EXtoMEM.storeData);
+        Reg_MEMtoWB.aluDone = false;
     }
 
     // Pass ALU result and rd for the Write Back stage
+    Reg_MEMtoWB.aluDone = Reg_EXtoMEM.aluDone;
     Reg_MEMtoWB.aluResult = Reg_EXtoMEM.aluResult;
     Reg_MEMtoWB.rd = Reg_EXtoMEM.rd;
 
@@ -125,12 +133,12 @@ void pipe_stage_execute()
     // Check MEM to WB forwarding
     if (Reg_MEMtoWB.rd == rs1 && Reg_MEMtoWB.rd != 0) {
         rs1_val = Reg_MEMtoWB.aluResult;  // Forward from MEM/WB to EX if rs1 needs the value from a recent ALU operation
-        Reg_EXtoMEM.aluDone = true;
+        Reg_MEMtoWB.aluDone = true;
         printf("Forwarding from MEM/WB to rs1: Using ALU result %d for R%d\n", Reg_MEMtoWB.aluResult, rs1);
     }
     if (Reg_MEMtoWB.rd == rs2 && Reg_MEMtoWB.rd != 0) {
         rs2_val = Reg_MEMtoWB.aluResult;  // Forward from MEM/WB to EX if rs2 needs the value from a recent ALU operation
-        Reg_EXtoMEM.aluDone = true;
+        Reg_MEMtoWB.aluDone = true;
         printf("Forwarding from MEM/WB to rs2: Using ALU result %d for R%d\n", Reg_MEMtoWB.aluResult, rs2);
     }
 
@@ -183,8 +191,9 @@ void pipe_stage_execute()
         case 0x63: // SB-type instructions
             // BLT
             if (rs1_val < rs2_val) {
-                Reg_EXtoMEM.branchTarget = CURRENT_STATE.PC + imm;  // Update PC if the branch is taken
+                Reg_EXtoMEM.branchTarget = Reg_IFtoDE.pc + imm;  // Update PC if the branch is taken
                 Reg_EXtoMEM.branchTaken = true;
+                printf("BLT: Branch = 0x%X + %d \n", Reg_IFtoDE.pc, imm);
                 printf("Executing Branch: rs1=%d, rs2=%d, rs1_val=%d, rs2_val=%d, imm=%d, Target=%x\n",
                     rs1, rs2, rs1_val, rs2_val, imm, Reg_EXtoMEM.branchTarget);
                 printf("BLT: Branch taken to PC=0x%X\n", Reg_EXtoMEM.branchTarget);
@@ -202,11 +211,12 @@ void pipe_stage_execute()
     // Pass rd to mem
     Reg_EXtoMEM.rd = rd;
 
-    //memset(&Reg_DEtoEX, 0, sizeof(Reg_DEtoEX)); // Clear DE to EX after use
+    memset(&Reg_DEtoEX, 0, sizeof(Reg_DEtoEX)); // Clear DE to EX after use
 }
 
 void pipe_stage_decode()
 {
+    // Pass instruction to local variable
     uint32_t instr = Reg_IFtoDE.instr;
     printf("Decode: Instruction=0x%X \n", instr);
 
@@ -249,14 +259,17 @@ void pipe_stage_decode()
 
     printf("Decode: Opcode=0x%X, rd=%d, funct3=0x%X, rs1=%d, rs2=%d, funct7=0x%X, imm=%d\n", 
            Reg_DEtoEX.opcode, Reg_DEtoEX.rd, Reg_DEtoEX.funct3, Reg_DEtoEX.rs1, Reg_DEtoEX.rs2, Reg_DEtoEX.funct7, imm);
-
-    //memset(&Reg_IFtoDE, 0, sizeof(Reg_IFtoDE)); // Clear IF to DE after use
 }
 
 void pipe_stage_fetch()
 {
   Reg_IFtoDE.instr = mem_read_32(CURRENT_STATE.PC);
-  Reg_IFtoDE.pc = CURRENT_STATE.PC;
-  printf("Fetch: PC=0x%08x, Instr=0x%08x\n", Reg_IFtoDE.pc, Reg_IFtoDE.instr);
-  CURRENT_STATE.PC = CURRENT_STATE.PC+4; // increment PC
+
+  if (Reg_IFtoDE.instr != 0 && Reg_EXtoMEM.branchTaken == false){
+    Reg_IFtoDE.pc = CURRENT_STATE.PC;
+    CURRENT_STATE.PC = CURRENT_STATE.PC+4; // increment PC
+  }
+
+  printf("Fetch: PC=0x%08x, IFtoDE PC=%08x, Instr=0x%08x\n", 
+    CURRENT_STATE.PC, Reg_IFtoDE.pc, Reg_IFtoDE.instr);
 }
