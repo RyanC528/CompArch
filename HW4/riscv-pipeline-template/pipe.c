@@ -236,4 +236,8 @@ void pipe_stage_fetch()
     Reg_IFtoDE.pc = CURRENT_STATE.PC;
     CURRENT_STATE.PC = CURRENT_STATE.PC+4; // increment PC
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> aded81a71fd936b1b65c679c2c19acfdd35a2c51
