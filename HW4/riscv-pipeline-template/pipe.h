@@ -43,6 +43,7 @@ typedef struct Pipe_Reg_EXtoMEM {
   uint32_t memAddress;
   uint32_t storeData;
   uint32_t aluResult;
+  uint32_t aluDone;
 
   uint32_t rd;
   uint32_t branchTaken;
