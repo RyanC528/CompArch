@@ -1,11 +1,9 @@
-#ifndef _PIPE_H_
-#define _PIPE_H_
-
-/* HEADER
-  Name: Ryan Copeland, Gaberial Gonzelas
-  Assignment: HW4, pipe.h
+/* Ryan Copeland | Gabriel Gonzalez | EECE 4821 | HW4 | pipe.h | 4/14/2024
   REPO: https://github.com/RyanC528/CompArch/tree/main/HW4
 */
+
+#ifndef _PIPE_H_
+#define _PIPE_H_
 
 #include "shell.h"
 #include "stdbool.h"
@@ -14,61 +12,51 @@
 #define RISCV_REGS 32
 
 typedef struct CPU_State_Struct {
-  uint32_t PC;		/* program counter */
+  uint32_t PC;		          /* program counter */
   int32_t REGS[RISCV_REGS]; /* register file. */
-  int FLAG_NV;        /* invalid operation */
-  int FLAG_DZ;        /* divide by zero */
-  int FLAG_OF;        /* overflow */
-  int FLAG_UF;        /* underflow */
-  int FLAG_NX;        /* inexact */
+  int FLAG_NV;              /* invalid operation */
+  int FLAG_DZ;              /* divide by zero */
+  int FLAG_OF;              /* overflow */
+  int FLAG_UF;              /* underflow */
+  int FLAG_NX;              /* inexact */
 } CPU_State;
 
 typedef struct Pipe_Reg_IFtoDE {
-
-  uint32_t instr; //input instruction
-  uint32_t pc;//program counter
-
+  uint32_t instr;   // Input instruction
+  uint32_t pc;      // Program counter
 } Pipe_Reg_IFtoDE;
 
 typedef struct Pipe_Reg_DEtoEX {
-  //taken from instruction
-  uint32_t opcode;//opcode
-  uint32_t rd; //desitnation register
-  uint32_t rs1; //register 1
-  uint32_t rs2; //register 2
-  uint32_t funct3; //function 3 code
-  uint32_t funct7; //function 7 code
-  int32_t imm; //intermediate
-
-  uint32_t pc;//program counter
-
+  uint32_t opcode;  // Opcode
+  uint32_t rd;      // Desitnation register
+  uint32_t rs1;     // First rource register
+  uint32_t rs2;     // Second source register
+  uint32_t funct3;  // Funct3 field
+  uint32_t funct7;  // Funct7 field (for R-type instructions)
+  int32_t imm;      // Immediate value
+  uint32_t pc;      // Program counter
 } Pipe_Reg_DEtoEX;
 
 typedef struct Pipe_Reg_EXtoMEM {
-  //taken largely from opcode
-  uint32_t memRead;// read memory bit
-  uint32_t memWrite;// write memory bit
-  uint32_t memAddress;//memory address
-  uint32_t storeData;//data to be store
-  uint32_t aluResult;// alu result
-  uint32_t aluDone;//alu completion bit
-
-  uint32_t rd;// destination register
-  uint32_t branchTaken;//branch taken
-  uint32_t branchTarget;//target branch
-
+  uint32_t rd;            // Holds destination register
+  uint32_t memRead;       // Flag to indicate data was read into register
+  uint32_t memWrite;      // Flag to indicate data needs to be written to register
+  uint32_t memAddress;    // Holds memory address for read/write operations
+  uint32_t storeData;     // Holds data for write operations
+  uint32_t aluResult;     // Holds ALU result for arithmetic operations
+  uint32_t aluDone;       // Flag to indicate WB needs to write ALU data to register
+  uint32_t branchTaken;   // Flag to indicate WB should write branch target to PC
+  uint32_t branchTarget;  // Holds target address for branch operations
 } Pipe_Reg_EXtoMEM;
 
 typedef struct Pipe_Reg_MEMtoWB {
-  uint32_t rd; //destination register
-  uint32_t memRead; //read memory bit
-  uint32_t memData; //write memory bit
-  uint32_t aluResult; //alu result
-  uint32_t branchTaken; //branch taken
-  uint32_t branchTarget; // target branch
-  uint32_t aluDone; // alu done bit
-
-
+  uint32_t rd;            // Holds destination register
+  uint32_t memRead;       // Flag to indicate data was read into register
+  uint32_t memData;       // Holds data found at memAddress for read operations
+  uint32_t aluResult;     // Holds ALU result for arithmetic operations
+  uint32_t aluDone;       // Flag to indicate WB needs to write ALU data to register
+  uint32_t branchTaken;   // Flag to indicate WB should write branch target to PC
+  uint32_t branchTarget;  // Holds target address for branch operations
 } Pipe_Reg_MEMtoWB;
 
 
