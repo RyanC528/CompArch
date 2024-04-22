@@ -70,3 +70,25 @@ int accessCacheTwoWaySetAssociative(AssociativeCache *cache, int address) {
 
     return miss;  // Return whether it was a miss
 }
+
+//prints containts of cache
+void printCache(Cache *cache){
+    int i;
+    FILE *file = fopen("cOutput.txt", "w");  // Open the trace file
+
+
+    for(i = 0; i < CACHE_SIZE; i++){ // goes to each cache block
+        if(cache->blocks[i].valid == 1){//if block contains data, write data
+            fprintf(file, (cache->blocks[i].tag + '0'));
+        }else{//if block doesnt contain data, print 0
+            fprintf(file, '0');
+        }
+        fprintf(file, "\n");//add new line
+    }
+}
+
+//prints containts of associativeCache
+void printAssociativeCache(Cache *cache){
+
+    FILE *file = fopen("aOutput.txt", "w");  // Open the trace file
+}
