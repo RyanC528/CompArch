@@ -51,7 +51,9 @@ int main() {
     printf("Simulating Smart Matrix Multiplication\n");
     simulateCacheAccessFromFile("smart4-trace.txt", &directCache, &assocCache);
 
+    //Dump Cache for allasis
     printCache(&directCache);
+    printAssociativeCache(&assocCache);
 
     return 0;
 }

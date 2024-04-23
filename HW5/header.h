@@ -38,6 +38,6 @@ int accessCacheDirectMapped(Cache *cache, int address);
 int accessCacheTwoWaySetAssociative(AssociativeCache *cache, int address);
 void simulateCacheAccessFromFile(const char *filename, Cache *directCache, AssociativeCache *assocCache);
 void printCache(Cache *cache);
-void printAssociativeCache(Cache *cache);
+void printAssociativeCache(AssociativeCache *cache);
 
 #endif // HEADER_H

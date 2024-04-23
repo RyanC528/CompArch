@@ -1,0 +1,33 @@
+valid, tag, lru
+SET 1
+1 2 2
+SET 2
+1 3 0
+SET 1
+1 2 2
+SET 2
+1 3 0
+SET 1
+1 3 1
+SET 2
+1 5 0
+SET 1
+1 3 1
+SET 2
+1 5 0
+SET 1
+N/A
+SET 2
+N/A
+SET 1
+1 0 -951115864
+SET 2
+N/A
+SET 1
+N/A
+SET 2
+N/A
+SET 1
+N/A
+SET 2
+N/A
