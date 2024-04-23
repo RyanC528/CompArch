@@ -95,13 +95,13 @@ void printAssociativeCache(AssociativeCache *cache){
 
     fprintf(file,"valid, tag, lru\n");
 
-    for(i = 0; i < CACHE_SIZE; i++){ // goes to each cache block
-        for(j = 0; j < 2; j++){
-            fprintf(file,"SET %d\n", j + 1);
+    for(j = 0; j < 2; j++){ // goes to each cache block
+        fprintf(file,"SET %d\n", j + 1);
+        for(i = 0; i < CACHE_SIZE; i++){
             if(cache->sets[i].blocks[j].valid == 1){//if block contains data, write data
                 fprintf(file, "%d %d %d",cache->sets[i].blocks[j].valid,cache->sets[i].blocks[j].tag, cache->sets[i].blocks[j].lru_counter);
             }else{//if block doesnt contain data, print 0
-                fprintf(file, "N/A");
+                fprintf(file, "0 N/A N/A");
             }
             fprintf(file, "\n");//add new line
         }
