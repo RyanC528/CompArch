@@ -80,9 +80,9 @@ void printCache(Cache *cache){
 
     for(i = 0; i < CACHE_SIZE; i++){ // goes to each cache block
         if(cache->blocks[i].valid == 1){//if block contains data, write data
-            fprintf(file, "%d %d %d",cache->blocks[i].valid,cache->blocks[i].tag, cache->blocks[i].lru_counter);
+            fprintf(file, "%p %d %d %d",cache,cache->blocks[i].valid,cache->blocks[i].tag, cache->blocks[i].lru_counter);
         }else{//if block doesnt contain data, print 0
-            fprintf(file, "N");
+            fprintf(file, "%p N", cache);
         }
         fprintf(file, "\n");//add new line
     }
@@ -99,9 +99,9 @@ void printAssociativeCache(AssociativeCache *cache){
         fprintf(file,"SET %d\n", j + 1);
         for(i = 0; i < CACHE_SIZE; i++){
             if(cache->sets[i].blocks[j].valid == 1){//if block contains data, write data
-                fprintf(file, "%d %d %d",cache->sets[i].blocks[j].valid,cache->sets[i].blocks[j].tag, cache->sets[i].blocks[j].lru_counter);
+                fprintf(file, "%p %d %d %d",*cache,cache->sets[i].blocks[j].valid,cache->sets[i].blocks[j].tag, cache->sets[i].blocks[j].lru_counter);
             }else{//if block doesnt contain data, print 0
-                fprintf(file, "0 N/A N/A");
+                fprintf(file, "%p 0 N/A N/A", *cache);
             }
             fprintf(file, "\n");//add new line
         }
